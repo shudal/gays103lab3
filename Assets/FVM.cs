@@ -151,7 +151,8 @@ public class FVM : MonoBehaviour
 
     	for(int i=0 ;i<number; i++)
     	{
-    		//TODO: Add gravity to Force.
+            //TODO: Add gravity to Force. 
+            Force[i] += new Vector3(0, mass * -9.8f, 0);
     	}
 
     	for(int tet=0; tet<tet_number; tet++)
@@ -168,9 +169,19 @@ public class FVM : MonoBehaviour
 
     	for(int i=0; i<number; i++)
     	{
-    		//TODO: Update X and V here.
+            //TODO: Update X and V here.
+            V[i] += Force[i] * dt;
+            X[i] = X[i] + V[i] * dt;
+            //TODO: (Particle) collision with floor.
+            Vector3 floorPos = GameObject.Find("Floor").transform.position;
+            if (X[i].y < floorPos.y)
+            {
+                Vector3 posNew = X[i];
+                posNew.y = floorPos.y;
 
-    		//TODO: (Particle) collision with floor.
+                X[i] = posNew;
+                V[i] = V[i] + (posNew - X[i]) * dt;
+            }
     	}
     }
 
