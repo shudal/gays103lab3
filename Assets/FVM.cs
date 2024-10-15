@@ -6,7 +6,7 @@ using System.IO;
 
 public class FVM : MonoBehaviour
 {
-	float dt 			= 0.0003f;
+	float dt 			= 0.003f;
     float mass 			= 1;
 	float stiffness_0	= 20000.0f;
     float stiffness_1 	= 5000.0f;
@@ -28,8 +28,13 @@ public class FVM : MonoBehaviour
 
 	SVD svd = new SVD();
 
-    bool bDebugUseOnVolume = true;
+    bool bDebugUseOnVolume = false;
+    private float blendAlpha = 0.5f;
 
+    private Vector3 floorPos = new Vector3(0, -3, 0);
+    private Vector3 floorNormal = new Vector3(0, 1, 0);
+    private float muN = 0.5f;
+    private float muT = 0.5f;
     // Start is called before the first frame update
     void Start()
     {
@@ -224,7 +229,7 @@ public class FVM : MonoBehaviour
         for (int i = 0; i < number; i++)
         {
             //TODO: Add gravity to Force. 
-            Force[i] += new Vector3(0, mass * -9.8f, 0);
+            Force[i] = new Vector3(0, mass * -9.8f, 0);
         }
 
         for (int tet = 0; tet < tet_number; tet++)
@@ -257,7 +262,7 @@ public class FVM : MonoBehaviour
             Matrix4x4 S = Add(Scale(G,2 * stiffness_1),Scale(Matrix4x4.identity, stiffness_0 * trace(G)));
             //TODO: Elastic Force
             Matrix4x4 f = Scale((F * S) * inv_Dm[tet].transpose, -(1f / 6f) * (1f / inv_Dm[tet].determinant));
-            f = Scale(f, 1f / f[3, 3]);
+            //f = Scale(f, 1f / f[3, 3]);
 
             Vector3 f1 = new Vector3(f[0, 0], f[1, 0], f[2, 0]);
             Vector3 f2 = new Vector3(f[0, 1], f[1, 1], f[2, 1]);
@@ -302,7 +307,8 @@ public class FVM : MonoBehaviour
         }
         for (int i=0; i<V.Length; i++)
         {
-            V[i] = V_sum[i] / V_num[i]; 
+            //V[i] = V_sum[i] / V_num[i];
+            V[i] = blendAlpha * V[i] + (1 - blendAlpha) * V_sum[i] / V_num[i];
         }
         for (int i = 0; i < number; i++)
         {
@@ -311,6 +317,7 @@ public class FVM : MonoBehaviour
             V[i] += Force[i] * dt;
             X[i] = X[i] + V[i] * dt;
             //TODO: (Particle) collision with floor.
+            /*
             Vector3 floorPos = GameObject.Find("Floor").transform.position;
             if (X[i].y < floorPos.y)
             {
@@ -319,8 +326,17 @@ public class FVM : MonoBehaviour
 
                 X[i] = posNew;
                 V[i] = V[i] + (posNew - X[i]) * dt;
+            }*/
+            float signedDis = Vector3.Dot(X[i] - floorPos, floorNormal);
+            if (signedDis < 0 && Vector3.Dot(V[i], floorNormal) < 0)
+            {
+                X[i] -= signedDis * floorNormal;
+                Vector3 vN = Vector3.Dot(V[i], floorNormal) * floorNormal;
+                Vector3 vT = V[i] - vN;
+                float a = Math.Max(1 - muT * (1 + muN) * vN.magnitude / vT.magnitude, 0);
+                V[i] = -muN * vN + a * vT;
             }
-    	}
+        }
     }
 
     // Update is called once per frame
