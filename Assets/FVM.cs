@@ -29,6 +29,7 @@ public class FVM : MonoBehaviour
 	SVD svd = new SVD();
 
     bool bDebugUseOnVolume = false;
+    bool bUseSVD = true;
     private float blendAlpha = 0.5f;
 
     private Vector3 floorPos = new Vector3(0, -3, 0);
@@ -217,6 +218,20 @@ public class FVM : MonoBehaviour
         }
         return Res;
     }
+    float trace2(Matrix4x4 a)
+    {
+        return (float)(Math.Pow(a[0, 0], 2) + Math.Pow(a[1, 1], 2) + Math.Pow(a[2, 2], 2));
+    }
+
+    float trace4(Matrix4x4 a)
+    {
+        return (float)(Math.Pow(a[0, 0], 4) + Math.Pow(a[1, 1], 4) + Math.Pow(a[2, 2], 4));
+    }
+
+    float det2(Matrix4x4 a)
+    {
+        return (float)(Math.Pow(a[0, 0], 2) * Math.Pow(a[1, 1], 2) * Math.Pow(a[2, 2], 2));
+    }
     void _Update()
     {
         // Jump up.
@@ -255,13 +270,41 @@ public class FVM : MonoBehaviour
             Vector3 X20 = X2 - X0;
             Vector3 X30 = X3 - X0;
             Matrix4x4 F = BuildMatrixByThreeVector(X10, X20, X30) * inv_Dm[tet];
-            //TODO: Green Strain
-            Matrix4x4 G = Scale(Add(F.transpose * F, Scale(Matrix4x4.identity, -1f)),0.5f);
-            
-            //TODO: Second PK Stress
-            Matrix4x4 S = Add(Scale(G,2 * stiffness_1),Scale(Matrix4x4.identity, stiffness_0 * trace(G)));
-            //TODO: Elastic Force
-            Matrix4x4 f = Scale((F * S) * inv_Dm[tet].transpose, -(1f / 6f) * (1f / inv_Dm[tet].determinant));
+            Matrix4x4 f;
+            if (bUseSVD)
+            { 
+                SVD svd = new SVD();
+                Matrix4x4 MU = new Matrix4x4(), MA = new Matrix4x4(), MV = new Matrix4x4(), P = new Matrix4x4();
+                svd.svd(F, ref MU, ref MA, ref MV);
+                float Ic = trace2(MA);
+                float IIc = trace4(MA);
+                float IIIc = det2(MA);
+                float dWdIc = 0.25f * stiffness_0 * (Ic - 3) - 0.5f * stiffness_1;
+                float dWdIIc = 0.25f * stiffness_1;
+                float dWdIIIc = 0;
+                float dIcdlamda0 = 2 * MA[0, 0];
+                float dIcdlamda1 = 2 * MA[1, 1];
+                float dIcdlamda2 = 2 * MA[2, 2];
+                float dIIcdlamda0 = 4 * MA[0, 0] * MA[0, 0] * MA[0, 0];
+                float dIIcdlamda1 = 4 * MA[1, 1] * MA[1, 1] * MA[1, 1];
+                float dIIcdlamda2 = 4 * MA[2, 2] * MA[2, 2] * MA[2, 2];
+                float dIIIcdlamda0 = 2 * IIIc / MA[0, 0];
+                float dIIIcdlamda1 = 2 * IIIc / MA[1, 1];
+                float dIIIcdlamda2 = 2 * IIIc / MA[2, 2];
+                P[0, 0] = dWdIc * dIcdlamda0 + dWdIIc * dIIcdlamda0 + dWdIIIc * dIIIcdlamda0;
+                P[1, 1] = dWdIc * dIcdlamda1 + dWdIIc * dIIcdlamda1 + dWdIIIc * dIIIcdlamda1;
+                P[2, 2] = dWdIc * dIcdlamda2 + dWdIIc * dIIcdlamda2 + dWdIIIc * dIIIcdlamda2;
+                f = Scale((MU * P * MV.transpose) * inv_Dm[tet].transpose, -(1f / 6f) * (1f / inv_Dm[tet].determinant));
+            } else
+            { 
+
+                //TODO: Green Strain
+                Matrix4x4 G = Scale(Add(F.transpose * F, Scale(Matrix4x4.identity, -1f)), 0.5f);
+                //TODO: Second PK Stress
+                Matrix4x4 S = Add(Scale(G, 2 * stiffness_1), Scale(Matrix4x4.identity, stiffness_0 * trace(G)));
+                //TODO: Elastic Force
+                f = Scale((F * S) * inv_Dm[tet].transpose, -(1f / 6f) * (1f / inv_Dm[tet].determinant));
+            }
             //f = Scale(f, 1f / f[3, 3]);
 
             Vector3 f1 = new Vector3(f[0, 0], f[1, 0], f[2, 0]);
