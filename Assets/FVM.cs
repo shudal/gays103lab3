@@ -30,6 +30,7 @@ public class FVM : MonoBehaviour
 
     bool bDebugUseOnVolume = false;
     bool bUseSVD = true;
+    bool bUseNeoHook = true;
     private float blendAlpha = 0.5f;
 
     private Vector3 floorPos = new Vector3(0, -3, 0);
@@ -273,15 +274,31 @@ public class FVM : MonoBehaviour
             Matrix4x4 f;
             if (bUseSVD)
             { 
+                if (bUseNeoHook)
+                {
+                    stiffness_1 /= 10f;
+                }
                 SVD svd = new SVD();
                 Matrix4x4 MU = new Matrix4x4(), MA = new Matrix4x4(), MV = new Matrix4x4(), P = new Matrix4x4();
                 svd.svd(F, ref MU, ref MA, ref MV);
-                float Ic = trace2(MA);
-                float IIc = trace4(MA);
-                float IIIc = det2(MA);
+                float Ic = trace2(MA); // I
+                float IIc = trace4(MA); // II
+                float IIIc = det2(MA); // I
                 float dWdIc = 0.25f * stiffness_0 * (Ic - 3) - 0.5f * stiffness_1;
                 float dWdIIc = 0.25f * stiffness_1;
                 float dWdIIIc = 0;
+
+                if (bUseNeoHook)
+                {
+                    float J = MA[0, 0] * MA[1, 1] * MA[2, 2];
+                    float rcbrt_III = 1f / (float)Math.Cbrt(IIIc);
+                    float factor_1 = 0.33333333333333333f * rcbrt_III / IIIc;
+                    dWdIc = rcbrt_III * stiffness_0;
+                    dWdIIc = 0;
+                    dWdIIIc = -factor_1 * stiffness_0 * Ic + stiffness_1 * (J - 1)/J;
+                    //dWdIIIc = -factor_1 * stiffness_0 * Ic - 0.5f * stiffness_1 * (1f / J) * (1f / IIIc);
+                }
+                
                 float dIcdlamda0 = 2 * MA[0, 0];
                 float dIcdlamda1 = 2 * MA[1, 1];
                 float dIcdlamda2 = 2 * MA[2, 2];
