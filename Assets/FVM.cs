@@ -8,8 +8,11 @@ public class FVM : MonoBehaviour
 {
 	float dt 			= 0.003f;
     float mass 			= 1;
-	float stiffness_0	= 20000.0f;
-    float stiffness_1 	= 5000.0f;
+	float stiffness_0	= 2000.0f;
+    float stiffness_1 	= 2000.0f; 
+
+    // s0过大，直接炸开
+    // s1越大，看起来越不容易形变
     float damp			= 0.999f;
 
 	int[] 		Tet;
@@ -245,7 +248,8 @@ public class FVM : MonoBehaviour
         for (int i = 0; i < number; i++)
         {
             //TODO: Add gravity to Force. 
-            Force[i] = new Vector3(0, mass * -9.8f, 0);
+            Force[i] =  new Vector3(0f,0f,0f);// new Vector3(0, mass * -9.8f, 0);
+            Force[i] =   new Vector3(0, mass * -9.8f, 0);
         }
 
         for (int tet = 0; tet < tet_number; tet++)
@@ -276,7 +280,7 @@ public class FVM : MonoBehaviour
             { 
                 if (bUseNeoHook)
                 {
-                    stiffness_1 /= 10f;
+                     
                 }
                 SVD svd = new SVD();
                 Matrix4x4 MU = new Matrix4x4(), MA = new Matrix4x4(), MV = new Matrix4x4(), P = new Matrix4x4();
